@@ -8,7 +8,6 @@
 module Google
   module Protobuf
     module MessageExts
-
       #this is only called in jruby; mri loades the ClassMethods differently
       def self.included(klass)
         klass.extend(ClassMethods)
@@ -24,12 +23,17 @@ module Google
       def to_proto(options = {})
         self.class.encode(self, options)
       end
-
     end
+
     class AbstractMessage
       include MessageExts
       extend MessageExts::ClassMethods
+
+      def initialize(*args, **kwargs)
+        raise "howdy"
+      end
     end
+
     private_constant :AbstractMessage
   end
 end

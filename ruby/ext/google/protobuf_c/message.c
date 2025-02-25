@@ -1384,6 +1384,10 @@ const upb_Message* Message_GetUpbMessage(VALUE value, const upb_MessageDef* m,
   return self->msg;
 }
 
+static VALUE Message_foo() {
+  return Qnil;
+}
+
 static void Message_define_class(VALUE klass) {
   rb_define_alloc_func(klass, Message_alloc);
 
@@ -1391,7 +1395,7 @@ static void Message_define_class(VALUE klass) {
   rb_define_method(klass, "method_missing", Message_method_missing, -1);
   rb_define_method(klass, "respond_to_missing?", Message_respond_to_missing,
                    -1);
-  rb_define_method(klass, "initialize", Message_initialize, -1);
+  // rb_define_method(klass, "initialize", Message_initialize, -1);
   rb_define_method(klass, "dup", Message_dup, 0);
   // Also define #clone so that we don't inherit Object#clone.
   rb_define_method(klass, "clone", Message_dup, 0);
@@ -1405,6 +1409,7 @@ static void Message_define_class(VALUE klass) {
   rb_define_method(klass, "to_s", Message_inspect, 0);
   rb_define_method(klass, "[]", Message_index, 1);
   rb_define_method(klass, "[]=", Message_index_set, 2);
+  rb_define_method(klass, "foo", Message_foo, 0);
   rb_define_singleton_method(klass, "decode", Message_decode, -1);
   rb_define_singleton_method(klass, "encode", Message_encode, -1);
   rb_define_singleton_method(klass, "decode_json", Message_decode_json, -1);
