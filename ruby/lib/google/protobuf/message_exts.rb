@@ -29,9 +29,9 @@ module Google
       include MessageExts
       extend MessageExts::ClassMethods
 
-      def initialize(*args, **kwargs)
-        raise "howdy"
-      end
+      # def initialize(*args, **kwargs)
+      #   raise "howdy"
+      # end
     end
 
     private_constant :AbstractMessage
