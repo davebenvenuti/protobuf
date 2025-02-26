@@ -641,9 +641,61 @@ static int Message_initialize_kwarg(VALUE key, VALUE val, VALUE _self) {
   return ST_CONTINUE;
 }
 
+/*
+
+  typedef struct {
+  upb_Message* msg;
+  const upb_MessageDef* msgdef;
+  upb_Arena* arena;
+} MsgInit;
+*/
+
+/*
+typedef struct {
+  // IMPORTANT: WB_PROTECTED objects must only use the RB_OBJ_WRITE()
+  // macro to update VALUE references, as to trigger write barriers.
+  VALUE arena;
+  const upb_Message* msg;  // Can get as mutable when non-frozen.
+  const upb_MessageDef*
+      msgdef;  // kept alive by self.class.descriptor reference.
+} Message;
+*/
+
+static VALUE Message_initialize_kwarg_alt(VALUE _self, VALUE key, VALUE val) {
+  Message* msg = ruby_to_Message(_self);
+  const char* name;
+
+  if (TYPE(key) == T_STRING) {
+    name = RSTRING_PTR(key);
+  } else if (TYPE(key) == T_SYMBOL) {
+    name = RSTRING_PTR(rb_id2str(SYM2ID(key)));
+  } else {
+    rb_raise(rb_eArgError,
+             "Expected string or symbols as hash keys when initializing proto "
+             "from hash.");
+  }
+
+  const upb_FieldDef* f =
+      upb_MessageDef_FindFieldByName(msg->msgdef, name);
+
+  if (f == NULL) {
+    rb_raise(rb_eArgError,
+             "Unknown field name '%s' in initialization map entry.", name);
+  }
+
+  Message_InitFieldFromValue((upb_Message*)(msg->msg), f, val, Arena_get(msg->arena));
+  return Qnil;
+}
+
+
 void Message_InitFromValue(upb_Message* msg, const upb_MessageDef* m, VALUE val,
                            upb_Arena* arena) {
+  //printf("!!! about to Message_initfromvalue()\n\n");
   MsgInit msg_init = {msg, m, arena};
+
+
+  //  printf("!!!!! in Message_initfromvalue()\n\n");
+
   if (TYPE(val) == T_HASH) {
     rb_hash_foreach(val, Message_initialize_kwarg, (VALUE)&msg_init);
   } else {
@@ -657,18 +709,40 @@ typedef struct {
   upb_Arena* arena;
 } ArenaInit;
 
-static ArenaInit* Message_init_arena(VALUE _self) {
+static ArenaInit Message_init_arena(VALUE _self) {
   Message* self = ruby_to_Message(_self);
   VALUE arena_rb = Arena_new();
   upb_Arena* arena = Arena_get(arena_rb);
   const upb_MiniTable* t = upb_MessageDef_MiniTable(self->msgdef);
   upb_Message* msg = upb_Message_New(t, arena);
 
+  //  printf("!!!! before Message_initptr\n\n");
   Message_InitPtr(_self, msg, arena_rb);
+  //  printf("!!!! after Message_initptr\n\n");
+
 
   ArenaInit ret = {.msg=self, .arena=arena};
-  return &ret;
+
+  // BAD rb_iv_set(_self, "@arena_init", (VALUE)&ret);
+
+  //  printf("!!!!!! AFTER ARENAINIT\n\n");
+  return ret;
 }
+
+static VALUE Message_init_arena_rb(VALUE _self) {
+  Message* self = ruby_to_Message(_self);
+  VALUE arena_rb = Arena_new();
+  upb_Arena* arena = Arena_get(arena_rb);
+  const upb_MiniTable* t = upb_MessageDef_MiniTable(self->msgdef);
+  upb_Message* msg = upb_Message_New(t, arena);
+
+  //  printf("!!!! before Message_initptr\n\n");
+  Message_InitPtr(_self, msg, arena_rb);
+  //  printf("!!!! after Message_initptr\n\n");
+
+  return Qnil;
+}
+
 
 /*
  * call-seq:
@@ -700,9 +774,12 @@ typedef struct {
   /* Message_InitPtr(_self, msg, arena_rb); */
   //////////////////////////////////////////
 
-  ArenaInit *msg_and_arena = Message_init_arena(_self);
-  Message *self = msg_and_arena->msg;
-  upb_Arena* arena = msg_and_arena->arena;
+  ArenaInit msg_and_arena = Message_init_arena(_self);
+  //  printf("!!!!! message_init_arena returned\n\n");
+  Message* self = msg_and_arena.msg;
+  upb_Arena* arena = msg_and_arena.arena;
+
+  //  printf("!!!!! ABOUT TO MESSAGE_INITFROMVALUE\n\n");
 
   if (argc == 0) {
     return Qnil;
@@ -1415,18 +1492,18 @@ const upb_Message* Message_GetUpbMessage(VALUE value, const upb_MessageDef* m,
   return self->msg;
 }
 
-static VALUE Message_foo() {
-  return Qnil;
-}
-
 static void Message_define_class(VALUE klass) {
   rb_define_alloc_func(klass, Message_alloc);
 
   rb_require("google/protobuf/message_exts");
+
+  rb_define_method(klass, "init_kwarg", Message_initialize_kwarg_alt, 2);
+  rb_define_method(klass, "init_arena", Message_init_arena_rb, 0);
+
   rb_define_method(klass, "method_missing", Message_method_missing, -1);
   rb_define_method(klass, "respond_to_missing?", Message_respond_to_missing,
                    -1);
-  rb_define_method(klass, "initialize", Message_initialize, -1);
+  //  rb_define_method(klass, "initialize", Message_initialize, -1);
   rb_define_method(klass, "dup", Message_dup, 0);
   // Also define #clone so that we don't inherit Object#clone.
   rb_define_method(klass, "clone", Message_dup, 0);
@@ -1440,7 +1517,6 @@ static void Message_define_class(VALUE klass) {
   rb_define_method(klass, "to_s", Message_inspect, 0);
   rb_define_method(klass, "[]", Message_index, 1);
   rb_define_method(klass, "[]=", Message_index_set, 2);
-  rb_define_method(klass, "foo", Message_foo, 0);
   rb_define_singleton_method(klass, "decode", Message_decode, -1);
   rb_define_singleton_method(klass, "encode", Message_encode, -1);
   rb_define_singleton_method(klass, "decode_json", Message_decode_json, -1);

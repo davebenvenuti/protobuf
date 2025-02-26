@@ -29,9 +29,11 @@ module Google
       include MessageExts
       extend MessageExts::ClassMethods
 
-      # def initialize(*args, **kwargs)
-      #   raise "howdy"
-      # end
+      def initialize(**kwargs)
+        init_arena
+
+        kwargs.each_pair { |key, val| init_kwarg(key, val) }
+      end
     end
 
     private_constant :AbstractMessage
