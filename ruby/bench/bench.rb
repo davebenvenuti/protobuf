@@ -76,4 +76,6 @@ Benchmark.ips do |x|
   x.report("initialize init_kwarg") { InitKwarg::BenchMessage.new(field_1:, field_2:) }
   x.report("initialize use setters") { UseSetters::BenchMessage.new(field_1:, field_2:) }
   x.report("initialize positional") { Positional::BenchMessage.new(field_1, field_2) }
+
+  x.compare!
 end
