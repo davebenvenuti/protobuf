@@ -55,7 +55,6 @@ module Positional
   end
 end
 
-
 field_1 = 123
 field_2 = "howdy"
 
@@ -72,10 +71,11 @@ rubber_duck_msgs.each_with_index do |rubber_duck_msg, i|
 end
 
 Benchmark.ips do |x|
-  x.report("initialize kwargs.each_pair") { Kwargs::BenchMessage.new(field_1:, field_2:) }
-  x.report("initialize init_kwarg") { InitKwarg::BenchMessage.new(field_1:, field_2:) }
-  x.report("initialize use setters") { UseSetters::BenchMessage.new(field_1:, field_2:) }
-  x.report("initialize positional") { Positional::BenchMessage.new(field_1, field_2) }
+  x.report("C initialize original") { ::BenchMessage.new(field_1:, field_2:) }
+  x.report("C initialize positional") { ::BenchMessage.allocate.positional_init(field_1, field_2) }
+  x.report("Ruby initialize kwargs splat") { Kwargs::BenchMessage.new(field_1:, field_2:) }
+  x.report("Ruby initialize explicit kwargs") { InitKwarg::BenchMessage.new(field_1:, field_2:) }
+  x.report("Ruby initialize positional") { Positional::BenchMessage.new(field_1, field_2) }
 
   x.compare!
 end

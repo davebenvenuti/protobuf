@@ -791,6 +791,41 @@ typedef struct {
   return Qnil;
 }
 
+static VALUE Message_initialize_positional(int argc, VALUE* argv, VALUE _self) {
+  /*
+typedef struct {
+  VALUE arena;
+  const upb_Message* msg;  // Can get as mutable when non-frozen.
+  const upb_MessageDef*
+      msgdef;  // kept alive by self.class.descriptor reference.
+} Message;
+   */
+  /* Message* self = ruby_to_Message(_self); */
+  /* VALUE arena_rb = Arena_new(); */
+  /* upb_Arena* arena = Arena_get(arena_rb); */
+  /* const upb_MiniTable* t = upb_MessageDef_MiniTable(self->msgdef); */
+  /* upb_Message* msg = upb_Message_New(t, arena); */
+
+  /* Message_InitPtr(_self, msg, arena_rb); */
+  //////////////////////////////////////////
+
+  ArenaInit msg_and_arena = Message_init_arena(_self);
+  //  printf("!!!!! message_init_arena returned\n\n");
+  Message* self = msg_and_arena.msg;
+  upb_Arena* arena = msg_and_arena.arena;
+
+  //  printf("!!!!! ABOUT TO MESSAGE_INITFROMVALUE\n\n");
+
+  if (argc == 0) {
+    return Qnil;
+  }
+  if (argc != 1) {
+    rb_raise(rb_eArgError, "Expected 0 or 1 arguments.");
+  }
+  Message_InitFromValue((upb_Message*)self->msg, self->msgdef, argv[0], arena);
+  return Qnil;
+}
+
 /*
  * call-seq:
  *     Message.dup => new_message
@@ -1500,10 +1535,12 @@ static void Message_define_class(VALUE klass) {
   rb_define_method(klass, "init_kwarg", Message_initialize_kwarg_alt, 2);
   rb_define_method(klass, "init_arena", Message_init_arena_rb, 0);
 
+  rb_define_method(klass, "positional_init", Message_initialize_positional,
+
   rb_define_method(klass, "method_missing", Message_method_missing, -1);
   rb_define_method(klass, "respond_to_missing?", Message_respond_to_missing,
                    -1);
-  //  rb_define_method(klass, "initialize", Message_initialize, -1);
+  rb_define_method(klass, "initialize", Message_initialize, -1);
   rb_define_method(klass, "dup", Message_dup, 0);
   // Also define #clone so that we don't inherit Object#clone.
   rb_define_method(klass, "clone", Message_dup, 0);

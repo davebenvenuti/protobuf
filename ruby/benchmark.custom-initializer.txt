@@ -1,0 +1,5 @@
+ruby 3.4.1 (2024-12-25 revision 48d4efcb85) +PRISM [x86_64-linux]
+Warming up --------------------------------------
+          initialize    49.525k i/100ms
+Calculating -------------------------------------
+          initialize    486.837k (± 1.2%) i/s    (2.05 μs/i) -      2.476M in   5.087223s
