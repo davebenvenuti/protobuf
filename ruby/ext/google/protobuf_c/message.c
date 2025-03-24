@@ -924,7 +924,7 @@ static VALUE Message_index_alt(VALUE _self, VALUE field_name) {
 
   st_table* field_cache = field_cache_for_RubyDescriptor(descriptor_rb);
 
-  if(!st_lookup(field_cache, field_name_id, &field)) {
+  if(!st_lookup(field_cache, field_name_id, (st_data_t*)&field)) {
     return Qnil;
   }
 
