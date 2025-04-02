@@ -13,10 +13,12 @@
 #include "protobuf.h"
 #include "repeated_field.h"
 #include "shared_message.h"
+#include "field_cache.h"
 
 static VALUE cParseError = Qnil;
 static VALUE cAbstractMessage = Qnil;
 static ID descriptor_instancevar_interned;
+static ID fieldcache_instancevar_interned;
 
 static VALUE initialize_rb_class_with_no_args(VALUE klass) {
   return rb_funcall(klass, rb_intern("new"), 0);
@@ -37,6 +39,7 @@ typedef struct {
   const upb_Message* msg;  // Can get as mutable when non-frozen.
   const upb_MessageDef*
       msgdef;  // kept alive by self.class.descriptor reference.
+  ID field_cache_id;
 } Message;
 
 static void Message_mark(void* _self) {
@@ -44,7 +47,9 @@ static void Message_mark(void* _self) {
   rb_gc_mark(self->arena);
 }
 
-static size_t Message_memsize(const void* _self) { return sizeof(Message); }
+static size_t Message_memsize(const void* _self) {
+  return sizeof(Message);
+}
 
 static rb_data_type_t Message_type = {
     "Google::Protobuf::Message",
@@ -652,6 +657,13 @@ void Message_InitFromValue(upb_Message* msg, const upb_MessageDef* m, VALUE val,
   }
 }
 
+FieldCache* Message_GetFieldCache(VALUE message_instance_rb) {
+  VALUE klass = rb_class_of(message_instance_rb);
+  VALUE field_cache_rb = rb_ivar_get(klass, fieldcache_instancevar_interned);
+
+  return ruby_to_FieldCache(field_cache_rb);
+}
+
 /*
  * call-seq:
  *     Message.new(kwargs) => new_message
@@ -894,6 +906,29 @@ static VALUE Message_index(VALUE _self, VALUE field_name) {
 
   Check_Type(field_name, T_STRING);
   field = upb_MessageDef_FindFieldByName(self->msgdef, RSTRING_PTR(field_name));
+
+  if (field == NULL) {
+    return Qnil;
+  }
+
+  return Message_getfield(_self, field);
+}
+
+/*
+ * call-seq:
+ *     Message.get(field_name) => value
+ *
+ * Accesses a field's value by field name. The provided field name should be a
+ * symbol.
+ */
+static VALUE Message_index_by_ID(VALUE _self, VALUE field_name) {
+  Message* self = ruby_to_Message(_self);
+  FieldCache* cache = Message_GetFieldCache(_self);
+  const upb_FieldDef* field;
+
+  Check_Type(field_name, T_SYMBOL);
+
+  field = FieldCache_field_for_ID(cache, RB_SYM2ID(field_name));
 
   if (field == NULL) {
     return Qnil;
@@ -1198,8 +1233,9 @@ static VALUE Message_descriptor(VALUE klass) {
 VALUE build_class_from_descriptor(VALUE descriptor) {
   const char* name;
   VALUE klass;
+  const upb_MessageDef* msgdef = Descriptor_GetMsgDef(descriptor);
 
-  name = upb_MessageDef_FullName(Descriptor_GetMsgDef(descriptor));
+  name = upb_MessageDef_FullName(msgdef);
   if (name == NULL) {
     rb_raise(rb_eRuntimeError, "Descriptor does not have assigned name.");
   }
@@ -1209,6 +1245,8 @@ VALUE build_class_from_descriptor(VALUE descriptor) {
       // their own toplevel constant class name.
       rb_intern("Message"), cAbstractMessage);
   rb_ivar_set(klass, descriptor_instancevar_interned, descriptor);
+  rb_ivar_set(klass, fieldcache_instancevar_interned, FieldCache_init_rb(msgdef));
+
   return klass;
 }
 
@@ -1405,6 +1443,7 @@ static void Message_define_class(VALUE klass) {
   rb_define_method(klass, "to_s", Message_inspect, 0);
   rb_define_method(klass, "[]", Message_index, 1);
   rb_define_method(klass, "[]=", Message_index_set, 2);
+  rb_define_method(klass, "get", Message_index_by_ID, 1);
   rb_define_singleton_method(klass, "decode", Message_decode, -1);
   rb_define_singleton_method(klass, "encode", Message_encode, -1);
   rb_define_singleton_method(klass, "decode_json", Message_decode_json, -1);
@@ -1423,4 +1462,5 @@ void Message_register(VALUE protobuf) {
   // instance variable on message classes we create in order to link them back
   // to their descriptors.
   descriptor_instancevar_interned = rb_intern("@descriptor");
+  fieldcache_instancevar_interned = rb_intern("field_cache");
 }
